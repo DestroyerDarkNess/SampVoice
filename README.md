@@ -20,21 +20,24 @@ Built with **C# Native AOT**, it targets 32-bit `win-x86` for direct game memory
 
 ---
 
-## Step-by-Step Deployment
+## Deployment
 
 ### 1. Deploy the Voice Relay (Server)
-The relay server routes voice packets between nearby players. Use Docker for the most professional, "one-click" deployment:
 
-1.  **Build & Publish**: 
-    - Go to the `ServerRelay/` folder.
-    - Run `publish.bat`.
-    - Provide your Docker Hub username and any image name (e.g., `my-voice-relay`).
-    - The script will build, log in, and push the image to `docker.io`.
-2.  **Host on Render.com (FREE)**:
-    - Create a **New Web Service** on Render.
-    - Choose **"Deploy an image from a Docker registry"**.
-    - Enter `docker.io/YOUR_USER/IMAGE_NAME:latest`.
-    - Render will provide a URL like `wss://your-relay.onrender.com`.
+#### Option A: Quick Deployment (Recommended)
+Use the pre-built Docker image for a "one-click" setup on Render.com:
+1.  Log in to [Render.com](https://render.com).
+2.  Click **New +** > **Web Service**.
+3.  Select **"Deploy an image from a Docker registry"**.
+4.  Enter the public image: `docker.io/pablisamp/sampvoice:latest` (or your own published image).
+5.  Render will provide a URL like `wss://your-relay.onrender.com`.
+
+#### Option B: Manual Docker Publish
+If you want to use your own Docker Hub repository:
+1.  Go to the `ServerRelay/` folder.
+2.  Run `publish.bat`.
+3.  Provide your Docker Hub username and image name. The script handles the build, login, and push automatically.
+4.  Follow the Render deployment steps above using your new image URL.
 
 ### 2. Configure the Plugin (Client)
 1.  Open `UniversalVoiceChat.ini` (created after first run or manually created next to `gta_sa.exe`).
