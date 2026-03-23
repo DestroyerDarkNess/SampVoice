@@ -15,6 +15,7 @@ namespace UniversalVoiceChat
     {
         private const uint DLL_PROCESS_DETACH = 0;
         private const uint DLL_PROCESS_ATTACH = 1;
+        private static readonly TimeSpan RemoteSessionTimeout = TimeSpan.FromSeconds(10);
 
         private static nint _hModule;
         private static bool _isRunning = false;
@@ -36,8 +37,34 @@ namespace UniversalVoiceChat
 
         private class RemotePlayerSession
         {
-            public VoicePlayback Playback { get; set; } = new VoicePlayback();
-            public VoiceDecoder Decoder { get; set; } = new VoiceDecoder();
+            private long _lastSeenTicks = DateTime.UtcNow.Ticks;
+            private int _disposed;
+
+            public object SyncRoot { get; } = new object();
+            public VoicePlayback Playback { get; } = new VoicePlayback();
+            public VoiceDecoder Decoder { get; } = new VoiceDecoder();
+
+            public DateTime LastSeenUtc => new DateTime(Interlocked.Read(ref _lastSeenTicks), DateTimeKind.Utc);
+            public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+            public void Touch()
+            {
+                Interlocked.Exchange(ref _lastSeenTicks, DateTime.UtcNow.Ticks);
+            }
+
+            public void Dispose()
+            {
+                lock (SyncRoot)
+                {
+                    if (IsDisposed)
+                    {
+                        return;
+                    }
+
+                    Volatile.Write(ref _disposed, 1);
+                    Playback.Dispose();
+                }
+            }
         }
 
         [UnmanagedCallersOnly(EntryPoint = "DllMain", CallConvs = new[] { typeof(CallConvStdcall) })]
@@ -142,6 +169,11 @@ namespace UniversalVoiceChat
                     }
                 }
 
+                if (ticks % 10 == 0)
+                {
+                    CleanupRemoteSessions();
+                }
+
                 ticks++;
                 Thread.Sleep(100); // 10 ticks per second
             }
@@ -201,10 +233,29 @@ namespace UniversalVoiceChat
 
             foreach (var session in _remotePlayers.Values)
             {
-                session.Playback.Dispose();
+                session.Dispose();
             }
 
             _remotePlayers.Clear();
+        }
+
+        private static void CleanupRemoteSessions()
+        {
+            DateTime cutoff = DateTime.UtcNow - RemoteSessionTimeout;
+
+            foreach (var kvp in _remotePlayers)
+            {
+                if (kvp.Value.LastSeenUtc >= cutoff)
+                {
+                    continue;
+                }
+
+                if (_remotePlayers.TryRemove(kvp.Key, out RemotePlayerSession? expiredSession))
+                {
+                    expiredSession.Dispose();
+                    Logger.Log($"[UniversalVoiceChat] Expired audio session for Player {kvp.Key}");
+                }
+            }
         }
 
         private static void Shutdown()
@@ -306,17 +357,27 @@ namespace UniversalVoiceChat
                     Logger.Log($"[UniversalVoiceChat] Incoming Audio from Player {senderId}");
                 }
 
-                // 1. Decode Opus to PCM
-                byte[] pcmData = session.Decoder.Decode(audioData, audioData.Length);
+                session.Touch();
 
-                // 2. Feed the PCM data to playback
-                session.Playback.FeedAudio(pcmData, pcmData.Length);
-
-                // 3. Adjust 3D Spatial Audio Volume & Panning
-                if (Memory.API.TryGetPlayerPosition(out var localPos))
+                lock (session.SyncRoot)
                 {
-                    SpatialMath.Calculate3DAudio(localPos, senderPos, 0f, out float vol, out float pan);
-                    session.Playback.UpdateSpatialAudio(vol, pan);
+                    if (session.IsDisposed)
+                    {
+                        return;
+                    }
+
+                    // 1. Decode Opus to PCM
+                    byte[] pcmData = session.Decoder.Decode(audioData, audioData.Length);
+
+                    // 2. Feed the PCM data to playback
+                    session.Playback.FeedAudio(pcmData, pcmData.Length);
+
+                    // 3. Adjust 3D Spatial Audio Volume & Panning
+                    if (Memory.API.TryGetPlayerPosition(out var localPos))
+                    {
+                        SpatialMath.Calculate3DAudio(localPos, senderPos, 0f, out float vol, out float pan);
+                        session.Playback.UpdateSpatialAudio(vol, pan);
+                    }
                 }
             }
             catch (Exception ex)

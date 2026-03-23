@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net.WebSockets;
 using System.Numerics;
 using System.Text;
@@ -12,6 +13,8 @@ namespace UniversalVoiceChat.Net
     public class WsVoiceClient : IDisposable
     {
         private const int MaxQueuedPackets = 64;
+        private const int ReceiveChunkSize = 8192;
+        private const int MaxIncomingMessageBytes = 65536;
 
         private ClientWebSocket? _ws;
         private readonly string _relayUrl;
@@ -177,31 +180,29 @@ namespace UniversalVoiceChat.Net
 
         private async Task ReceiveLoopAsync(CancellationToken ct)
         {
-            byte[] buffer = new byte[65536];
-
             while (_ws != null && _ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
             {
                 try
                 {
-                    var result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), ct).ConfigureAwait(false);
+                    (WebSocketMessageType messageType, byte[] messageData) = await ReceiveMessageAsync(ct).ConfigureAwait(false);
 
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    if (messageType == WebSocketMessageType.Close)
                     {
                         Logger.Log("[UniversalVoiceChat-WS] Server closed connection.");
                         break;
                     }
 
-                    if (result.MessageType == WebSocketMessageType.Binary && result.Count > 16)
+                    if (messageType == WebSocketMessageType.Binary && messageData.Length > 16)
                     {
                         // Forwarded packet: [SENDER_ID(4)] [X(4)] [Y(4)] [Z(4)] [AUDIO...]
-                        uint senderId = BitConverter.ToUInt32(buffer, 0);
-                        float x = BitConverter.ToSingle(buffer, 4);
-                        float y = BitConverter.ToSingle(buffer, 8);
-                        float z = BitConverter.ToSingle(buffer, 12);
+                        uint senderId = BitConverter.ToUInt32(messageData, 0);
+                        float x = BitConverter.ToSingle(messageData, 4);
+                        float y = BitConverter.ToSingle(messageData, 8);
+                        float z = BitConverter.ToSingle(messageData, 12);
 
-                        int audioLen = result.Count - 16;
+                        int audioLen = messageData.Length - 16;
                         byte[] audioPayload = new byte[audioLen];
-                        Buffer.BlockCopy(buffer, 16, audioPayload, 0, audioLen);
+                        Buffer.BlockCopy(messageData, 16, audioPayload, 0, audioLen);
 
                         OnAudioReceived?.Invoke(senderId, new Vector3(x, y, z), audioPayload);
                     }
@@ -219,6 +220,37 @@ namespace UniversalVoiceChat.Net
 
             _isConnected = false;
             ClearSendQueue();
+        }
+
+        private async Task<(WebSocketMessageType MessageType, byte[] MessageData)> ReceiveMessageAsync(CancellationToken ct)
+        {
+            byte[] chunkBuffer = new byte[ReceiveChunkSize];
+            using MemoryStream messageBuffer = new MemoryStream();
+
+            while (true)
+            {
+                var result = await _ws!.ReceiveAsync(new ArraySegment<byte>(chunkBuffer), ct).ConfigureAwait(false);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    return (WebSocketMessageType.Close, Array.Empty<byte>());
+                }
+
+                if (messageBuffer.Length + result.Count > MaxIncomingMessageBytes)
+                {
+                    throw new InvalidOperationException($"Incoming WebSocket message exceeded {MaxIncomingMessageBytes} bytes.");
+                }
+
+                if (result.Count > 0)
+                {
+                    messageBuffer.Write(chunkBuffer, 0, result.Count);
+                }
+
+                if (result.EndOfMessage)
+                {
+                    return (result.MessageType, messageBuffer.ToArray());
+                }
+            }
         }
 
         private void ClearSendQueue()
