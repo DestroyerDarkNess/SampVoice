@@ -1,1 +1,60 @@
-/SampVoice.7z
+# Visual Studio version and user-specific settings
+.vs/
+*.suo
+*.user
+*.userprefs
+*.tmp
+*.log
+*.obj
+*.cache
+*.suo.cache
+*.sln.docstates
+
+# Visual Studio temporary files
+ipch/
+*.pdb
+*.opendb
+*.aps
+*.ncb
+*.sdf
+*.ilk
+*.tlb
+*.plg
+*.pch
+*.obj
+*.exp
+*.lib
+*.tlh
+*.tli
+*.VC.db
+
+# User-specific files
+*.suo
+*.user
+.vs
+*.userprefs
+.tmproj
+
+# Build output
+bin/
+publish/
+x86/
+x64/
+obj/
+Hexa.NET.ImGui-main/
+packages/
+Other/
+PhantomRender.md
+Remastering Graphics Library.md
+# Local application data
+*.local
+*.buildextensions
+Nuget/
+
+# Test Results
+TestResults
+
+# Others
+*.user
+Thumbs.db
+desktop.ini
