@@ -1,0 +1,5 @@
+C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\obj\Debug\net9.0-windows\win-x86\UniversalVoiceChat.csproj.AssemblyReference.cache
+C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\obj\Debug\net9.0-windows\win-x86\UniversalVoiceChat.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\obj\Debug\net9.0-windows\win-x86\UniversalVoiceChat.AssemblyInfoInputs.cache
+C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\obj\Debug\net9.0-windows\win-x86\UniversalVoiceChat.AssemblyInfo.cs
+C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\obj\Debug\net9.0-windows\win-x86\UniversalVoiceChat.csproj.CoreCompileInputs.cache
