@@ -1,1 +1,0 @@
-C:\Users\Administrator\source\repos\SampVoice\UniversalVoiceChat\bin\Release\net9.0-windows\win-x86\publish\UniversalVoiceChat.dll
